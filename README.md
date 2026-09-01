@@ -62,13 +62,12 @@ Requiere [NSSM](https://nssm.cc/download) en la carpeta o en el PATH.
 | GET    | `/config`       | Leer configuración actual                                          |
 | POST   | `/config`       | Actualizar configuración                                           |
 | POST   | `/print/fiscal` | Imprimir factura / nota de entrega / ticket fiscal (payload JSON)  |
-| POST   | `/print/ticket` | Imprimir ticket no fiscal (texto plano, automático, sin botón)     |
 | POST   | `/print/test`   | Imprimir línea de prueba                                           |
 | POST   | `/report/x`     | Reporte X — lectura parcial (no cierra la jornada)                 |
 | POST   | `/report/z`     | Cierre Z — cierre de jornada fiscal (irreversible)                 |
 | POST   | `/cancel-doc`   | Cancelar/abortar documento fiscal abierto (recuperación tras corte)|
 
-### Respuesta de `/status`
+### Respuesta de `/status` (v1.1)
 
 ```json
 {
@@ -86,7 +85,68 @@ Requiere [NSSM](https://nssm.cc/download) en la carpeta o en el PATH.
 }
 ```
 
-> Solo el driver HKA implementa `fiscal` con valores reales. Los demás devuelven `null` — la app lo muestra como "desconocido".
+> Solo el driver HKA implementa `fiscal` con valores reales. Los demás drivers devuelven `null` en los campos — la app lo muestra como "desconocido".
+
+---
+
+## Payload `/print/fiscal`
+
+```json
+{
+  "tipo_documento": "factura",
+  "numero_control": "00-00000001",
+  "numero_factura": "00000001",
+  "emisor": {
+    "razon_social": "Mi Negocio C.A.",
+    "rif": "J-12345678-9",
+    "direccion": "Av. Principal, Local 1",
+    "telefono": "0414-1234567"
+  },
+  "receptor": {
+    "nombre": "CONSUMIDOR FINAL",
+    "rif": "V-00000000",
+    "direccion": ""
+  },
+  "items": [
+    {
+      "description": "Producto ejemplo",
+      "quantity": 2,
+      "unit_price": 5.00,
+      "subtotal": 10.00,
+      "tax_rate": 16,
+      "unit": "UND"
+    }
+  ],
+  "subtotal": 10.00,
+  "base_imponible": 10.00,
+  "alicuota_iva": 16,
+  "monto_iva": 1.60,
+  "descuento": 0,
+  "total": 11.60,
+  "total_ves": 422.48,
+  "tasa_bcv": 36.42,
+  "pagos": [
+    { "method": "cash_usd", "amount": 11.60, "currency": "USD" }
+  ],
+  "printer": {
+    "brand": "HKA",
+    "model": "80H",
+    "port": "COM1",
+    "baud_rate": 9600
+  },
+  "fecha_hora": "2026-06-23T15:30:00",
+  "cajero": "Maria Perez"
+}
+```
+
+**Respuesta exitosa:**
+```json
+{
+  "success": true,
+  "numero_control": "00-00000001",
+  "numero_factura": "00000001"
+}
+```
 
 ---
 
@@ -110,6 +170,19 @@ La configuración también puede actualizarse en vivo desde la app VenPOS (Confi
 
 ---
 
+## Impresoras térmicas USB (tickets no fiscales)
+
+Las impresoras térmicas conectadas por **USB** (Xprinter, EPSON TM-T20, Bematech, etc.) **NO son puertos serie**: Windows las instala como impresoras normales. Para imprimir tickets no fiscales automáticamente (sin la ventana del navegador), el Bridge usa el **spooler de Windows** (`win32print`):
+
+1. Instala la impresora térmica en **Windows → Configuración → Dispositivos → Impresoras y escáneres**.
+2. En la app VenPOS ve a **Configuración → Impresión de Ticket**, selecciona **"USB (impresora de Windows)"** como tipo de conexión.
+3. En el campo **"Nombre exacto de la impresora en Windows"** escribe el nombre tal cual aparece en Windows (ej: `XP-5890K`, `EPSON TM-T20II`, `Xprinter XP-350C`).
+4. Pulsa **Probar conexión** (el Bridge validará que la impresora exista) y luego **Guardar**.
+
+> Requiere `pywin32` (incluido en `requirements.txt` para Windows). El Bridge envía los bytes ESC/POS crudos a esa impresora como un trabajo RAW, así no abre cuadros de diálogo.
+
+---
+
 ## Estructura del proyecto
 
 ```
@@ -121,6 +194,8 @@ venpos-bridge/
 ├── requirements.txt
 ├── build_exe.bat          # Compilar a .exe
 ├── install_service.bat    # Instalar servicio Windows
+├── config.json            # (auto-generado)
+├── venpos_bridge.log      # (auto-generado)
 └── drivers/
     ├── base.py            # Clase base abstracta
     ├── hka.py             # Driver HKA

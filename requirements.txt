@@ -2,5 +2,7 @@
 pyserial>=3.5
 pystray>=0.19.0
 Pillow>=10.0.0
+# Spooler de Windows para impresoras térmicas USB (ESC/POS):
+pywin32>=306; sys_platform == "win32"
 # Opcional para notificaciones en Windows:
 # win10toast>=0.9

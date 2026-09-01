@@ -191,16 +191,21 @@ class BaseFiscalDriver(ABC):
         """
         Imprime texto plano (no fiscal) — ticket simple / comprobante informativo.
         Útil para impresoras térmicas genéricas o texto no fiscal en fiscales que
-        lo soporten. Escribe el texto crudo al puerto serial con la codificación
-        configurada. Los drivers con comandos específicos pueden sobrescribirlo.
+        lo soporten. Envía comandos ESC/POS de inicialización + el texto + corte
+        de papel, por la conexión serial o el spooler de Windows (USB).
         Retorna: {"success": bool, "error": str}
         """
         conn = None
         try:
             conn = self._open_port()
             encoding = self.config.encoding or "latin-1"
-            # Asegura un corte de papel final
-            data = (text + "\n\n").encode(encoding, errors="replace")
+            # ESC @ — inicializa la impresora (reseta modo, alineación, etc.)
+            # El texto crudo tal cual (latin-1)
+            # GS V 1 — corte de papel total al final
+            esc_init = b"\x1b\x40"
+            body = (text + "\n\n\n").encode(encoding, errors="replace")
+            esc_cut = b"\x1d\x56\x01"
+            data = esc_init + body + esc_cut
             conn.write(data)
             conn.flush()
             return {"success": True}

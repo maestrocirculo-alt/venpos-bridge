@@ -1,6 +1,5 @@
 """
-PrinterManager — Selecciona el driver correcto según la marca configurada
-y delega la impresión y operaciones fiscales (X, Z, cancelación, estado).
+PrinterManager — Selecciona el driver correcto según la marca configurada.
 """
 
 import logging
@@ -62,14 +61,12 @@ class PrinterManager:
             return {"success": False, "error": str(e)}
 
     def print_text(self, text: str) -> dict:
-        """Ticket no fiscal (texto plano) — comprobante informativo automático."""
         try:
             return self._driver.print_text(text)
         except Exception as e:
             log.error(f"Error en print_text: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    # ── Mantenimiento fiscal ──────────────────────────────────────────────────
     def get_fiscal_status(self) -> dict:
         try:
             return self._driver.get_fiscal_status()

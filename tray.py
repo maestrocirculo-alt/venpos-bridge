@@ -1,9 +1,5 @@
 """
 Ícono en la bandeja del sistema (System Tray) para VenPOS Bridge.
-Requiere: pystray, Pillow
-
-El ícono aparece en la barra de tareas de Windows con un menú contextual
-para ver el estado, abrir el log y detener el bridge.
 """
 
 import os
@@ -20,21 +16,16 @@ except ImportError:
     TRAY_AVAILABLE = False
 
 
-def _create_icon_image(color: str = "#047857") -> "Image.Image":
-    """Crea un ícono verde simple 64x64 con la letra V."""
+def _create_icon_image(color: str = "#047857"):
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    # Fondo circular verde
     draw.ellipse([4, 4, 60, 60], fill=color)
-    # Letra V
-    draw.polygon([(16, 18), (24, 18), (32, 44), (40, 18), (48, 18), (32, 54)],
-                 fill="white")
+    draw.polygon([(16, 18), (24, 18), (32, 44), (40, 18), (48, 18), (32, 54)], fill="white")
     return img
 
 
-def run_tray(version: str = "1.0.0"):
+def run_tray(version: str = "2.0.0"):
     if not TRAY_AVAILABLE:
-        # Sin GUI — mantener el proceso vivo
         threading.Event().wait()
         return
 
@@ -52,17 +43,11 @@ def run_tray(version: str = "1.0.0"):
         os._exit(0)
 
     def on_status(icon, item):
-        # Solo muestra una notificación — en Windows usa win10toast si está disponible
         try:
             from win10toast import ToastNotifier
-            ToastNotifier().show_toast(
-                "VenPOS Bridge",
-                f"Corriendo en http://127.0.0.1:8765\nVersión {version}",
-                duration=4,
-                threaded=True,
-            )
+            ToastNotifier().show_toast("VenPOS Bridge", f"Corriendo en http://127.0.0.1:8765\nVersión {version}", duration=4, threaded=True)
         except Exception:
-            pass  # Sin notificaciones disponibles
+            pass
 
     menu = pystray.Menu(
         Item(f"VenPOS Bridge v{version}", lambda i, it: None, enabled=False),
@@ -73,10 +58,5 @@ def run_tray(version: str = "1.0.0"):
         Item("Detener Bridge", on_quit),
     )
 
-    icon = pystray.Icon(
-        name="VenPOS Bridge",
-        icon=icon_image,
-        title=f"VenPOS Bridge v{version} — Activo",
-        menu=menu,
-    )
+    icon = pystray.Icon(name="VenPOS Bridge", icon=icon_image, title=f"VenPOS Bridge v{version} — Activo", menu=menu)
     icon.run()

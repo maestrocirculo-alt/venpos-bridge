@@ -1,7 +1,6 @@
 @echo off
-:: Instala VenPOS Bridge como servicio de Windows para que arranque automáticamente
-:: Requisito: NSSM (Non-Sucking Service Manager) en PATH o en la misma carpeta
-:: Descargar NSSM: https://nssm.cc/download
+:: Instala VenPOS Bridge como servicio de Windows
+:: Requisito: NSSM en PATH o en la misma carpeta
 
 echo Instalando VenPOS Bridge como servicio de Windows...
 

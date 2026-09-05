@@ -29,7 +29,7 @@ from datetime import datetime
 from printer_manager import PrinterManager
 from config import BridgeConfig, _base_dir
 
-VERSION = "1.1.0"
+VERSION = "2.0.0"
 
 # Log junto al ejecutable (persistente aunque esté compilado con PyInstaller)
 LOG_FILE = os.path.join(_base_dir(), "venpos_bridge.log")
@@ -60,6 +60,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
         self.end_headers()
         self.wfile.write(body)
 
@@ -75,6 +76,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
+        self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
     def do_GET(self):
@@ -103,13 +106,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
         else:
             self._send_json({"error": "Not found"}, 404)
 
-    # ── Handlers ─────────────────────────────────────────────────────────────
-
     def _handle_status(self):
         ready, detail = printer_mgr.check_printer()
-        # Estado fiscal real (papel / doc abierto / Z pendiente) — best-effort:
-        # si el driver no lo soporta, se devuelven flags en None para que la app
-        # lo indique como "desconocido" en vez de suponer OK.
         fstatus = printer_mgr.get_fiscal_status()
         self._send_json({
             "ok": True,
@@ -160,8 +158,6 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._send_json({"success": False, "error": str(e)}, 500)
 
     def _handle_print_ticket(self):
-        # Ticket no fiscal automático (texto plano) — para comprobantes
-        # informativos que no requieren factura fiscal SENIAT.
         try:
             payload = self._read_body()
             text = payload.get("text", "")
@@ -230,12 +226,10 @@ def run_server():
 
 
 if __name__ == "__main__":
-    # Intentar mostrar ícono en la bandeja del sistema (opcional)
     try:
         from tray import run_tray
         t = threading.Thread(target=run_server, daemon=True)
         t.start()
-        run_tray(VERSION)  # bloquea en el hilo principal
+        run_tray(VERSION)
     except Exception:
-        # Si no hay GUI disponible, correr solo el servidor
         run_server()

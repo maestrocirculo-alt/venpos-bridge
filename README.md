@@ -13,7 +13,7 @@ Corre en `http://127.0.0.1:8765` en la PC donde está conectada la impresora.
 | HKA       | 80H, 110H, Hasar 715F, 330F             | `hka.py`       |
 | NCR       | 2008, 2010, 7197                        | `ncr.py`       |
 | Bematech  | MP-4200 TH, MP-2500 TH, MP-F4000       | `bematech.py`  |
-| ACLAS     | PP9-PLUS, PP9A, PP7A, PP5A             | `aclas.py`     |
+| ACLAS     | PP9A, PP7A, PP5A                        | `aclas.py`     |
 | EPSON     | TM-T20X Fiscal, TM-T88VI Fiscal        | `epson_fiscal.py` |
 | Datasym   | DS9300, DS9200                          | `datasym.py`   |
 | Otro      | Cualquier impresora serial/texto plano  | `generic.py`   |
@@ -86,7 +86,7 @@ Requiere [NSSM](https://nssm.cc/download) en la carpeta o en el PATH.
 }
 ```
 
-> Los drivers HKA y ACLAS implementan `fiscal` con valores reales. Los demás drivers devuelven `null` en los campos — la app lo muestra como "desconocido".
+> Solo el driver HKA implementa `fiscal` con valores reales. Los demás drivers devuelven `null` en los campos — la app lo muestra como "desconocido".
 
 ---
 
@@ -202,7 +202,7 @@ venpos-bridge/
     ├── hka.py             # Driver HKA
     ├── ncr.py             # Driver NCR
     ├── bematech.py        # Driver Bematech
-    ├── aclas.py           # Driver ACLAS (PP9-PLUS, PP9A, PP7A, PP5A)
+    ├── aclas.py           # Driver ACLAS
     ├── epson_fiscal.py    # Driver EPSON Fiscal
     ├── datasym.py         # Driver Datasym
     └── generic.py         # Driver genérico (texto plano)
@@ -213,7 +213,6 @@ venpos-bridge/
 ## Notas de desarrollo
 
 - Cada driver implementa `print_fiscal_invoice(payload)` y `print_test()`.
-- Los drivers HKA y ACLAS implementan operaciones de mantenimiento fiscal (Reporte X, Cierre Z, estado, cancelación).
 - Los protocolos de HKA y Bematech están basados en sus manuales técnicos oficiales.
 - Para agregar soporte a una nueva marca: crear `drivers/nueva_marca.py` heredando `BaseFiscalDriver` y registrarlo en `printer_manager.py`.
 - El puente usa CORS abierto (`*`) ya que solo escucha en `127.0.0.1`.

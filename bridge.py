@@ -29,7 +29,7 @@ from datetime import datetime
 from printer_manager import PrinterManager
 from config import BridgeConfig, _base_dir
 
-VERSION = "3.0.0"
+VERSION = "4.0.0"
 
 # Log junto al ejecutable (persistente aunque esté compilado con PyInstaller)
 LOG_FILE = os.path.join(_base_dir(), "venpos_bridge.log")

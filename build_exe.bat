@@ -4,12 +4,16 @@
 :: Ejecutar: doble clic sobre este archivo
 
 echo ============================================
-echo  VenPOS Bridge - Generando .exe (v2.0.0)
+echo  VenPOS Bridge - Generando .exe (v3.0.0)
 echo ============================================
 echo.
 
+:: 1) Actualizar pip e instalar dependencias (mostrando errores)
 echo [1/3] Instalando dependencias (PyInstaller, PySerial, Pystray, Pillow, pywin32)...
 python -m pip install --upgrade pip
+:: pywin32 es OBLIGATORIO: sin el el .exe no puede hablar con el spooler de
+:: Windows para imprimir tickets en impresoras termicas USB (ACLAS, Xprinter,
+:: Epson, etc.) y siempre cae al dialogo de impresion del navegador.
 python -m pip install pyinstaller pyserial pystray Pillow pywin32
 if errorlevel 1 (
   echo.
@@ -18,15 +22,21 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+:: pywin32 requiere su post-instalacion para registrar las DLL COM/win32print.
 python -m pip install --force-reinstall pywin32
 python -c "import sys, os; import pywin32_postinstall; pywin32_postinstall.install(remove_other=True, silent=True); print('pywin32 postinstall OK')"
 echo  OK dependencias instaladas (incluye pywin32).
 echo.
 
+:: 2) Icono opcional
 set ICON_FLAG=
 if exist "icon.ico" set ICON_FLAG=--icon "icon.ico"
 
+:: 3) Compilar con PyInstaller (usamos python -m para no depender del PATH de Scripts)
 echo [2/3] Compilando el ejecutable... (tarda 1-3 minutos)
+:: --collect-all pywin32 empaqueta win32print y sus DLLs (pythoncom, pywintypes)
+:: para que el .exe pueda imprimir por el spooler de Windows (USB termico).
+:: --hidden-import win32print refuerza la inclusion del modulo que abre la impresora.
 python -m PyInstaller ^
   --onefile ^
   --noconsole ^
@@ -47,6 +57,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
+:: 4) Verificar que realmente existe el .exe
 if not exist "dist\VenPOS-Bridge.exe" (
   echo.
   echo *** ERROR: no se encontro dist\VenPOS-Bridge.exe ***

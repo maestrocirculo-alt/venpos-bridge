@@ -8,6 +8,12 @@ import os
 import sys
 
 def _base_dir() -> str:
+    """
+    Carpeta donde guardar config.json y logs.
+    Si el programa está compilado con PyInstaller (--onefile), __file__ apunta
+    a una carpeta temporal _MEIxxxx que se borra al cerrar. Usamos la carpeta
+    del ejecutable real (sys.executable) para que la config persista.
+    """
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +30,7 @@ DEFAULTS = {
     "stop_bits": 1,
     "timeout": 10,
     "encoding": "latin-1",
-    "printer_name": "",
+    "printer_name": "",  # Nombre exacto de la impresora en Windows para puertos USB
 }
 
 

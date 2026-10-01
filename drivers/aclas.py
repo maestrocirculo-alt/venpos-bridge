@@ -1,6 +1,7 @@
 """
-Driver ACLAS — Impresoras PP9A, PP7A, PP5A.
+Driver ACLAS — Impresoras PP9-PLUS, PP9A, PP7A, PP5A.
 Protocolo: comandos ASCII con separador ';' y checksum XOR.
+Fabricadas por THE FACTORY HKA C.A.
 """
 
 import time
@@ -84,6 +85,85 @@ class ACLASDriver(BaseFiscalDriver):
             }
         except Exception as e:
             log.error(f"ACLAS error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+        finally:
+            self._close_port(conn)
+
+    # ── Operaciones de mantenimiento fiscal (SENIAT) ──────────────────────────
+    # THE FACTORY HKA fabrica la linea ACLAS (PP9-PLUS, PP9A, etc.) y comparte
+    # los mismos codigos de mantenimiento que la linea HKA: Z0=estado, X0=Reporte
+    # X, Z1=Cierre Z, S4=cancelar documento. Se envian con el framing ACLAS
+    # (STX + comando;params;checksum + ETX) heredado de _cmd.
+
+    def get_fiscal_status(self) -> dict:
+        conn = None
+        try:
+            conn = self._open_port()
+            raw = self._cmd(conn, "Z0")
+            err = raw.startswith("E") or "ERROR" in raw.upper()
+            low = raw.upper()
+            paper_ok = "SINPAPEL" not in low and "PAPER" not in low.replace("PAPEROUT", "")
+            doc_open = "ABIER" in low or "DOC" in low
+            z_pending = "ZPEND" in low or "CIERRE" in low
+            ready = not err and paper_ok and not doc_open and not z_pending
+            return {
+                "success": True,
+                "paper_ok": paper_ok,
+                "doc_open": doc_open,
+                "z_pending": z_pending,
+                "printer_ready": ready,
+                "raw": raw,
+            }
+        except Exception as e:
+            return {
+                "success": False, "paper_ok": None, "doc_open": None,
+                "z_pending": None, "printer_ready": False, "error": str(e),
+            }
+        finally:
+            self._close_port(conn)
+
+    def print_report_x(self) -> dict:
+        conn = None
+        try:
+            conn = self._open_port()
+            r = self._cmd(conn, "X0")
+            if r.startswith("E"):
+                return {"success": False, "error": f"Error en Reporte X: {r}", "code": r}
+            return {"success": True, "message": "Reporte X emitido", "raw": r}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            self._close_port(conn)
+
+    def print_report_z(self) -> dict:
+        conn = None
+        try:
+            conn = self._open_port()
+            r = self._cmd(conn, "Z1")
+            if r.startswith("E"):
+                return {"success": False, "error": f"Error en Cierre Z: {r}", "code": r}
+            z_number = ""
+            if "^" in r:
+                parts = r.split("^")
+                if len(parts) >= 2:
+                    z_number = parts[1].strip()
+            elif r:
+                z_number = r.replace("OK", "").strip()
+            return {"success": True, "z_number": z_number, "message": "Cierre Z emitido", "raw": r}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            self._close_port(conn)
+
+    def cancel_document(self) -> dict:
+        conn = None
+        try:
+            conn = self._open_port()
+            r = self._cmd(conn, "S4")
+            if r.startswith("E"):
+                return {"success": False, "error": f"Error al cancelar documento: {r}", "code": r}
+            return {"success": True, "message": "Documento cancelado", "raw": r}
+        except Exception as e:
             return {"success": False, "error": str(e)}
         finally:
             self._close_port(conn)

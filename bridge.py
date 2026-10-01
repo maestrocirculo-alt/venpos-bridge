@@ -29,7 +29,7 @@ from datetime import datetime
 from printer_manager import PrinterManager
 from config import BridgeConfig, _base_dir
 
-VERSION = "4.0.1"
+VERSION = "4.0.2"
 
 # Log junto al ejecutable (persistente aunque esté compilado con PyInstaller)
 LOG_FILE = os.path.join(_base_dir(), "venpos_bridge.log")
@@ -231,7 +231,21 @@ class BridgeHandler(BaseHTTPRequestHandler):
 def run_server():
     host = "127.0.0.1"
     port = 8765
-    server = HTTPServer((host, port), BridgeHandler)
+    try:
+        server = HTTPServer((host, port), BridgeHandler)
+    except OSError:
+        # Puerto ocupado: casi siempre es otra copia (vieja) del Bridge abierta.
+        # Sin este aviso la copia nueva queda muda y la app sigue hablando con la vieja.
+        msg = (f"No se pudo iniciar el VenPOS Bridge: el puerto {port} ya está en uso.\n\n"
+               "Hay otra copia del Bridge abierta. Ciérrala desde el ícono de la bandeja "
+               "del sistema (junto al reloj) con 'Detener Bridge' y abre este programa de nuevo.")
+        log.error(msg)
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, msg, "VenPOS Bridge", 0x10)
+        except Exception:
+            pass
+        os._exit(1)
     log.info(f"VenPOS Bridge v{VERSION} iniciado en http://{host}:{port}")
     log.info(f"Impresora configurada: {config.brand} {config.model} en {config.port}")
     try:

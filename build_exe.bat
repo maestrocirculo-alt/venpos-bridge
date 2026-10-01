@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ============================================
-echo  VenPOS Bridge - Generando .exe (v4.0.1)
+echo  VenPOS Bridge - Generando .exe (v4.0.2)
 echo ============================================
 echo  Carpeta: %CD%
 echo.

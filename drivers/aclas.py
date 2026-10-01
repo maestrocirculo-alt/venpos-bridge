@@ -23,14 +23,14 @@ IVA_TABLE = {0: "A", 8: "B", 16: "C", 31: "D"}
 
 class ACLASDriver(BaseFiscalDriver):
 
-    def _send_cmd(self, conn, cmd: str, wait: float = 0.15) -> str:
+    def _send_cmd(self, conn, cmd: str, wait: float = 0.15, timeout: float = 5.0) -> str:
         """Envia un comando y espera respuesta — mismo framing que HKA."""
         full = cmd + "\r"
         conn.write(full.encode(self.config.encoding or "latin-1"))
         conn.flush()
         time.sleep(wait)
         response = b""
-        deadline = time.time() + 5
+        deadline = time.time() + timeout
         while conn.in_waiting or (time.time() < deadline and not response):
             if conn.in_waiting:
                 response += conn.read(conn.in_waiting)
@@ -52,7 +52,8 @@ class ACLASDriver(BaseFiscalDriver):
         conn = None
         try:
             conn = self._open_port()
-            raw = self._send_cmd(conn, "Z0", wait=0.3)
+            # Timeout corto: /status no debe bloquearse si la impresora no contesta
+            raw = self._send_cmd(conn, "Z0", wait=0.3, timeout=1.0)
             err = self._check_error(raw)
             low = raw.upper()
             paper_ok = "SINPAPEL" not in low and "PAPER" not in low.replace("PAPEROUT", "")

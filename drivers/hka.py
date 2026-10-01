@@ -29,14 +29,14 @@ IVA_TABLE = {0: "A", 8: "B", 16: "C", 31: "D"}
 
 class HKADriver(BaseFiscalDriver):
 
-    def _send_cmd(self, conn, cmd: str, wait: float = 0.15) -> str:
+    def _send_cmd(self, conn, cmd: str, wait: float = 0.15, timeout: float = 5.0) -> str:
         """Envía un comando y espera respuesta."""
         full = cmd + "\r"
         conn.write(full.encode(self.config.encoding or "latin-1"))
         conn.flush()
         time.sleep(wait)
         response = b""
-        deadline = time.time() + 5
+        deadline = time.time() + timeout
         while conn.in_waiting or (time.time() < deadline and not response):
             if conn.in_waiting:
                 response += conn.read(conn.in_waiting)
@@ -60,7 +60,7 @@ class HKADriver(BaseFiscalDriver):
             conn = self._open_port()
             # Z0 = consulta de estado en HKA. La respuesta suele ser una cadena
             # con bytes de estado o un "OK..." prints. Interpretamos lo básico.
-            raw = self._send_cmd(conn, "Z0", wait=0.3)
+            raw = self._send_cmd(conn, "Z0", wait=0.3, timeout=1.0)
             err = self._check_error(raw)
             # Heurística de parseo — ajusta según el firmware concreto:
             low = raw.upper()

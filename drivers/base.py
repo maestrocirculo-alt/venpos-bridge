@@ -14,6 +14,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Tuple
 
+from .hka_protocol import port_lock, explain_open_error
+
 log = logging.getLogger("FiscalDriver")
 
 
@@ -154,17 +156,33 @@ class BaseFiscalDriver(ABC):
 
     def check_connection(self) -> Tuple[bool, str]:
         """Verifica que el puerto esté disponible (conexión física)."""
+        # Spooler de Windows (impresora térmica USB): no toca ningún COM, no compite
+        # con la impresora fiscal. Se comprueba sin candado.
+        if self._uses_spooler():
+            try:
+                conn = self._open_port()
+                self._close_port(conn)
+                return True, f"Impresora Windows '{self.config.printer_name}' OK"
+            except RuntimeError as e:
+                return False, str(e)
+        # Puerto serial (COM): se usa el MISMO candado per-puerto que el driver fiscal
+        # (hka_protocol.port_lock) para que ticket y fiscal nunca abran el mismo COM
+        # a la vez — eso era lo que daba "puerto ocupado por otro programa".
+        port = self.config.port or "COM1"
+        lock = port_lock(port)
+        if not lock.acquire(timeout=10):
+            return False, f"El puerto {port} está ocupado por otra operación del Bridge."
         try:
             conn = self._open_port()
             self._close_port(conn)
-            if self._uses_spooler():
-                return True, f"Impresora Windows '{self.config.printer_name}' OK"
-            return True, f"Puerto {self.config.port} OK"
-        except serial.SerialException as e:
-            return False, f"No se puede abrir {self.config.port}: {e}"
-        except RuntimeError as e:
-            # Errores del spooler de Windows (impresora no existe, pywin32 ausente)
-            return False, str(e)
+            return True, f"Puerto {port} OK"
+        except Exception as e:
+            return False, explain_open_error(port, e)
+        finally:
+            try:
+                lock.release()
+            except Exception:
+                pass
 
     # ── Helpers de formato ────────────────────────────────────────────────────
 
@@ -203,6 +221,12 @@ class BaseFiscalDriver(ABC):
         Retorna: {"success": bool, "error": str}
         """
         conn = None
+        use_spooler = self._uses_spooler()
+        # Spooler de Windows: sin candado (no toca COM). Serial: mismo candado que el
+        # driver fiscal para que no compitan por el mismo puerto.
+        lock = None if use_spooler else port_lock(self.config.port or "COM1")
+        if lock is not None and not lock.acquire(timeout=10):
+            return {"success": False, "error": f"El puerto {self.config.port} está ocupado por otra operación del Bridge."}
         try:
             conn = self._open_port()
             encoding = self.config.encoding or "latin-1"
@@ -225,6 +249,11 @@ class BaseFiscalDriver(ABC):
             return {"success": False, "error": str(e)}
         finally:
             self._close_port(conn)
+            if lock is not None:
+                try:
+                    lock.release()
+                except Exception:
+                    pass
 
     def _build_logo_raster(self, url: str) -> bytes:
         """Descarga la imagen del logo y la convierte a raster ESC/POS (GS v 0).

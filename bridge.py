@@ -34,7 +34,7 @@ from printer_manager import PrinterManager
 from config import BridgeConfig, _base_dir
 from diagnostics import run_diagnostics
 
-VERSION = "5.0.0"
+VERSION = "5.0.1"
 
 # Log junto al ejecutable (persistente aunque esté compilado con PyInstaller)
 LOG_FILE = os.path.join(_base_dir(), "venpos_bridge.log")

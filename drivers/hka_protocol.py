@@ -241,12 +241,27 @@ class HKASession:
             return
         import serial
         parity = {"E": serial.PARITY_EVEN, "N": serial.PARITY_NONE, "O": serial.PARITY_ODD}[self.parity]
-        self.conn = serial.Serial(
-            port=self.port, baudrate=self.baud, bytesize=serial.EIGHTBITS,
-            parity=parity, stopbits=serial.STOPBITS_ONE,
-            timeout=0.1, write_timeout=3,
-        )
-        log.info(f"Puerto {self.port} abierto ({self.baud} 8{self.parity}1)")
+        # Si el COM está momentáneamente tomado (otra operación del Bridge soltándolo,
+        # o el SO liberando el handle), reintentar un par de veces antes de rendirse.
+        # Solo reintenta en "acceso denegado"; un puerto inexistente no tiene sentido reintentarlo.
+        last_err = None
+        for _ in range(4):
+            try:
+                self.conn = serial.Serial(
+                    port=self.port, baudrate=self.baud, bytesize=serial.EIGHTBITS,
+                    parity=parity, stopbits=serial.STOPBITS_ONE,
+                    timeout=0.1, write_timeout=3,
+                )
+                log.info(f"Puerto {self.port} abierto ({self.baud} 8{self.parity}1)")
+                return
+            except Exception as e:
+                last_err = e
+                msg = str(e).lower()
+                if "permission" in msg or "access" in msg or "(13," in msg or "denied" in msg or "denegado" in msg:
+                    time.sleep(0.4)
+                    continue
+                raise
+        raise last_err
 
     # ── E/S de bajo nivel ─────────────────────────────────────────────────────
     def _flush_in(self):

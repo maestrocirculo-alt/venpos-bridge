@@ -122,7 +122,7 @@ class BaseFiscalDriver(ABC):
         (win32print) con el nombre de la impresora configurada. Si no,
         usa pyserial como antes (COM1, /dev/ttyUSB0, etc.)."""
         port = self.config.port or "COM1"
-        if _is_windows_spooler(port):
+        if self._uses_spooler():
             printer_name = getattr(self.config, "printer_name", "") or ""
             conn = WinSpoolerConnection(printer_name, timeout=int(self.config.timeout or 10))
             log.info(f"Spooler de Windows '{printer_name}' abierto")
@@ -138,6 +138,13 @@ class BaseFiscalDriver(ABC):
         log.info(f"Puerto {port} abierto a {self.config.baud_rate} bps")
         return conn
 
+    def _uses_spooler(self) -> bool:
+        """Impresora térmica instalada en Windows: si hay un nombre de impresora
+        configurado, se imprime por el spooler sin importar qué COM haya en el puerto
+        (evita que un ticket compita por el COM de la impresora fiscal)."""
+        name = getattr(self.config, "printer_name", "") or ""
+        return bool(name) or _is_windows_spooler(self.config.port)
+
     def _close_port(self, conn):
         try:
             if conn and getattr(conn, "is_open", False):
@@ -150,7 +157,7 @@ class BaseFiscalDriver(ABC):
         try:
             conn = self._open_port()
             self._close_port(conn)
-            if _is_windows_spooler(self.config.port):
+            if self._uses_spooler():
                 return True, f"Impresora Windows '{self.config.printer_name}' OK"
             return True, f"Puerto {self.config.port} OK"
         except serial.SerialException as e:

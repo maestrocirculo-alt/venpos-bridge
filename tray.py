@@ -41,7 +41,8 @@ def run_tray(version: str = "1.0.0"):
     icon_image = _create_icon_image()
 
     def on_open_log(icon, item):
-        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venpos_bridge.log")
+        from config import _base_dir  # el log vive junto al .exe, no en la carpeta temporal de PyInstaller
+        log_file = os.path.join(_base_dir(), "venpos_bridge.log")
         if sys.platform == "win32":
             os.startfile(log_file)
         else:

@@ -1,0 +1,51 @@
+# Compila VenPOS-Bridge.exe en los servidores de GitHub (Windows) y lo publica como Release.
+# Enlace directo (siempre la última versión):
+#   https://github.com/maestrocirculo-alt/venpos-bridge/releases/latest/download/VenPOS-Bridge.exe
+# (En el repositorio este archivo vive en .github/workflows/build-exe.yml)
+name: Compilar VenPOS Bridge
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: python -m pip install --upgrade pip pyinstaller pyserial pystray Pillow pywin32
+
+      - name: Leer versión
+        id: ver
+        run: |
+          $v = (Select-String -Path bridge.py -Pattern 'VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          "v=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Compilar .exe
+        run: python -m PyInstaller --onefile --noconsole --name "VenPOS-Bridge" --hidden-import pystray._win32 --collect-submodules PIL --collect-all pywin32 --hidden-import win32print --hidden-import win32api --hidden-import win32con --hidden-import serial.tools.list_ports --hidden-import serial.tools.list_ports_windows bridge.py
+
+      - name: Verificar que el .exe existe
+        run: |
+          if (!(Test-Path dist\VenPOS-Bridge.exe)) { throw "No se generó dist\VenPOS-Bridge.exe" }
+          (Get-Item dist\VenPOS-Bridge.exe).Length
+
+      - name: Borrar release anterior de la misma versión
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "v${{ steps.ver.outputs.v }}" --yes --cleanup-tag
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v${{ steps.ver.outputs.v }}" dist\VenPOS-Bridge.exe --title "VenPOS Bridge v${{ steps.ver.outputs.v }}" --notes "Ejecutable listo para usar. Cierra cualquier Bridge anterior (ícono junto al reloj → Detener Bridge) antes de abrir este."

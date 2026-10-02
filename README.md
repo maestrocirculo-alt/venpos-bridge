@@ -1,218 +1,57 @@
-# VenPOS Bridge
+# VenPOS Bridge v5.0
 
-Servidor HTTP local que actúa como middleware entre la app web **VenPOS** y las impresoras fiscales venezolanas homologadas por SENIAT.
+Servidor HTTP local (`http://127.0.0.1:8765`) que conecta VenPOS con la impresora fiscal y la impresora térmica de tickets de la misma PC.
 
-Corre en `http://127.0.0.1:8765` en la PC donde está conectada la impresora.
+## Instalar (lo más fácil)
 
----
+Descarga el `.exe` ya compilado (siempre la última versión):
 
-## Impresoras soportadas
+https://github.com/maestrocirculo-alt/venpos-bridge/releases/latest/download/VenPOS-Bridge.exe
 
-| Marca     | Modelos                                 | Driver         |
-|-----------|-----------------------------------------|----------------|
-| HKA       | 80H, 110H, Hasar 715F, 330F             | `hka.py`       |
-| NCR       | 2008, 2010, 7197                        | `ncr.py`       |
-| Bematech  | MP-4200 TH, MP-2500 TH, MP-F4000       | `bematech.py`  |
-| ACLAS     | PP9A, PP7A, PP5A                        | `aclas.py`     |
-| EPSON     | TM-T20X Fiscal, TM-T88VI Fiscal        | `epson_fiscal.py` |
-| Datasym   | DS9300, DS9200                          | `datasym.py`   |
-| Otro      | Cualquier impresora serial/texto plano  | `generic.py`   |
+1. Si tienes un Bridge anterior abierto: ícono verde junto al reloj → **Detener Bridge**.
+2. Ejecuta `VenPOS-Bridge.exe`. Crea `config.json` y `venpos_bridge.log` en su misma carpeta.
+3. En VenPOS: **Configuración → Fiscal** → *Probar Conexión*. Debe decir **v5.0.0**.
 
----
+Si algo falla, usa **Diagnóstico** en esa misma pantalla y copia el informe.
 
-## Instalación rápida
+## Impresoras fiscales HKA / ACLAS (PP9-PLUS, PP9A, HKA80...)
 
-```bash
-# 1. Instalar dependencias
-pip install -r requirements.txt
+Hablan el **protocolo directo de The Factory HKA** (Manual de Protocolos y Comandos V8.5.0), implementado en `drivers/hka_protocol.py`:
 
-# 2. Correr el bridge
-python bridge.py
-```
+| Dato | Valor (del manual) |
+|---|---|
+| Puerto serial | 9600 bps · 8 bits · **paridad PAR** · 1 stop |
+| Trama | `STX(02)` + DATA + `ETX(03)` + `LRC` (XOR de DATA y ETX) |
+| Estado | `ENQ (05)` → `STX STS1 STS2 ETX LRC` |
+| Respuesta a un comando | `ACK (06)` / `NAK (15)` |
+| Reporte X / Cierre Z | `I0X` / `I0Z` (el Z tarda ~20 s) |
+| Anular documento | `7` |
 
-El ícono verde aparecerá en la barra de tareas de Windows.
+El Bridge **no da nada por conectado hasta recibir la respuesta real de la impresora** (ENQ). "El puerto abre" ya no significa "conectada".
 
----
+## Dos impresoras, dos perfiles
 
-## Compilar como .exe (Windows)
+- **fiscal**: la impresora fiscal (Configuración → Fiscal).
+- **ticket**: la térmica de tickets (Configuración → Tickets). Si tiene nombre de impresora de Windows, imprime por el spooler y **no usa el COM** de la fiscal.
 
-```bat
-build_exe.bat
-```
+Cada pantalla guarda solo su perfil; ya no se pisan.
 
-El ejecutable queda en `dist\VenPOS-Bridge.exe`. No requiere Python instalado.
+## Endpoints
 
----
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/status` | versión, estado fiscal (ENQ) y estado de la térmica |
+| GET | `/diagnose?scan=1` | informe de diagnóstico; `scan=1` prueba todos los COM |
+| GET/POST | `/config` | leer / guardar (`{"profile":"fiscal"\|"ticket", ...}`) |
+| POST | `/print/fiscal` | factura fiscal |
+| POST | `/print/ticket` | ticket de texto en la térmica |
+| POST | `/report/x` · `/report/z` | Reporte X · Cierre Z |
+| POST | `/cancel-doc` | anular documento fiscal abierto |
 
-## Instalar como servicio de Windows (arranque automático)
+## Compilar a mano (opcional)
 
-```bat
-install_service.bat
-```
+`build_exe.bat` genera `dist\VenPOS-Bridge.exe`. El repositorio también lo compila solo en GitHub Actions en cada cambio.
 
-Requiere [NSSM](https://nssm.cc/download) en la carpeta o en el PATH.
+## Otras marcas
 
----
-
-## Endpoints HTTP (v4.0)
-
-| Método | Ruta            | Descripción                                                        |
-|--------|-----------------|--------------------------------------------------------------------|
-| GET    | `/status`       | Estado del bridge + estado fiscal real (papel / doc abierto / Z)   |
-| GET    | `/config`       | Leer configuración actual                                          |
-| POST   | `/config`       | Actualizar configuración                                           |
-| POST   | `/print/fiscal` | Imprimir factura / nota de entrega / ticket fiscal (payload JSON)  |
-| POST   | `/print/ticket` | Imprimir ticket no fiscal (texto plano, automático, sin navegador) |
-| POST   | `/print/test`   | Imprimir línea de prueba                                           |
-| POST   | `/report/x`     | Reporte X — lectura parcial (no cierra la jornada)                 |
-| POST   | `/report/z`     | Cierre Z — cierre de jornada fiscal (irreversible)                 |
-| POST   | `/cancel-doc`   | Cancelar/abortar documento fiscal abierto (recuperación tras corte)|
-
-### Respuesta de `/status` (v4.0)
-
-```json
-{
-  "ok": true,
-  "version": "4.0.0",
-  "printer_ready": true,
-  "printer_brand": "HKA",
-  "port": "COM1",
-  "fiscal": {
-    "paper_ok": true,
-    "doc_open": false,
-    "z_pending": false,
-    "printer_ready": true
-  }
-}
-```
-
-> Solo el driver HKA implementa `fiscal` con valores reales. Los demás drivers devuelven `null` en los campos — la app lo muestra como "desconocido".
-
----
-
-## Payload `/print/fiscal`
-
-```json
-{
-  "tipo_documento": "factura",
-  "numero_control": "00-00000001",
-  "numero_factura": "00000001",
-  "emisor": {
-    "razon_social": "Mi Negocio C.A.",
-    "rif": "J-12345678-9",
-    "direccion": "Av. Principal, Local 1",
-    "telefono": "0414-1234567"
-  },
-  "receptor": {
-    "nombre": "CONSUMIDOR FINAL",
-    "rif": "V-00000000",
-    "direccion": ""
-  },
-  "items": [
-    {
-      "description": "Producto ejemplo",
-      "quantity": 2,
-      "unit_price": 5.00,
-      "subtotal": 10.00,
-      "tax_rate": 16,
-      "unit": "UND"
-    }
-  ],
-  "subtotal": 10.00,
-  "base_imponible": 10.00,
-  "alicuota_iva": 16,
-  "monto_iva": 1.60,
-  "descuento": 0,
-  "total": 11.60,
-  "total_ves": 422.48,
-  "tasa_bcv": 36.42,
-  "pagos": [
-    { "method": "cash_usd", "amount": 11.60, "currency": "USD" }
-  ],
-  "printer": {
-    "brand": "HKA",
-    "model": "80H",
-    "port": "COM1",
-    "baud_rate": 9600
-  },
-  "fecha_hora": "2026-06-23T15:30:00",
-  "cajero": "Maria Perez"
-}
-```
-
-**Respuesta exitosa:**
-```json
-{
-  "success": true,
-  "numero_control": "00-00000001",
-  "numero_factura": "00000001"
-}
-```
-
----
-
-## Configuración (`config.json`)
-
-```json
-{
-  "brand": "HKA",
-  "model": "80H",
-  "port": "COM1",
-  "baud_rate": 9600,
-  "data_bits": 8,
-  "parity": "N",
-  "stop_bits": 1,
-  "timeout": 10,
-  "encoding": "latin-1"
-}
-```
-
-La configuración también puede actualizarse en vivo desde la app VenPOS (Configuración → Impresora Fiscal → Probar Conexión).
-
----
-
-## Impresoras térmicas USB (tickets no fiscales)
-
-Las impresoras térmicas conectadas por **USB** (Xprinter, EPSON TM-T20, Bematech, etc.) **NO son puertos serie**: Windows las instala como impresoras normales. Para imprimir tickets no fiscales automáticamente (sin la ventana del navegador), el Bridge usa el **spooler de Windows** (`win32print`):
-
-1. Instala la impresora térmica en **Windows → Configuración → Dispositivos → Impresoras y escáneres**.
-2. En la app VenPOS ve a **Configuración → Impresión de Ticket**, selecciona **"USB (impresora de Windows)"** como tipo de conexión.
-3. En el campo **"Nombre exacto de la impresora en Windows"** escribe el nombre tal cual aparece en Windows (ej: `XP-5890K`, `EPSON TM-T20II`, `Xprinter XP-350C`).
-4. Pulsa **Probar conexión** (el Bridge validará que la impresora exista) y luego **Guardar**.
-
-> Requiere `pywin32` (incluido en `requirements.txt` para Windows). El Bridge envía los bytes ESC/POS crudos a esa impresora como un trabajo RAW, así no abre cuadros de diálogo.
-
----
-
-## Estructura del proyecto
-
-```
-venpos-bridge/
-├── bridge.py              # Servidor HTTP principal
-├── config.py              # Gestión de configuración
-├── printer_manager.py     # Selector de drivers
-├── tray.py                # Ícono en bandeja del sistema
-├── requirements.txt
-├── build_exe.bat          # Compilar a .exe
-├── install_service.bat    # Instalar servicio Windows
-├── config.json            # (auto-generado)
-├── venpos_bridge.log      # (auto-generado)
-└── drivers/
-    ├── base.py            # Clase base abstracta
-    ├── hka.py             # Driver HKA
-    ├── ncr.py             # Driver NCR
-    ├── bematech.py        # Driver Bematech
-    ├── aclas.py           # Driver ACLAS
-    ├── epson_fiscal.py    # Driver EPSON Fiscal
-    ├── datasym.py         # Driver Datasym
-    └── generic.py         # Driver genérico (texto plano)
-```
-
----
-
-## Notas de desarrollo
-
-- Cada driver implementa `print_fiscal_invoice(payload)` y `print_test()`.
-- Los protocolos de HKA y Bematech están basados en sus manuales técnicos oficiales.
-- Para agregar soporte a una nueva marca: crear `drivers/nueva_marca.py` heredando `BaseFiscalDriver` y registrarlo en `printer_manager.py`.
-- El puente usa CORS abierto (`*`) ya que solo escucha en `127.0.0.1`.
+NCR, Bematech, Epson Fiscal, Datasym y Genérica conservan sus drivers anteriores.

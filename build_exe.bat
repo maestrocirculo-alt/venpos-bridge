@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ============================================
-echo  VenPOS Bridge - Generando .exe (v4.0.2)
+echo  VenPOS Bridge - Generando .exe (v5.0.0)
 echo ============================================
 echo  Carpeta: %CD%
 echo.
@@ -16,7 +16,7 @@ echo.
 echo [2/3] Compilando el ejecutable... (1-3 minutos)
 set ICON_FLAG=
 if exist "icon.ico" set ICON_FLAG=--icon "icon.ico"
-python -m PyInstaller --onefile --noconsole --name "VenPOS-Bridge" %ICON_FLAG% --hidden-import pystray._win32 --collect-submodules PIL --collect-all pywin32 --hidden-import win32print --hidden-import win32api --hidden-import win32con bridge.py
+python -m PyInstaller --onefile --noconsole --name "VenPOS-Bridge" %ICON_FLAG% --hidden-import pystray._win32 --collect-submodules PIL --collect-all pywin32 --hidden-import win32print --hidden-import win32api --hidden-import win32con --hidden-import serial.tools.list_ports --hidden-import serial.tools.list_ports_windows bridge.py
 if errorlevel 1 goto :error_build
 
 if not exist "dist\VenPOS-Bridge.exe" goto :error_noexe
